@@ -1,0 +1,3 @@
+case,max_temperature_deviation_c,energy_deviation_pct,fallback_expected,thermal_balance_error_pct
+invalid_forecast,0.0,0.0,True,1.8272888125778044e-12
+high_heat_bias,0.12275347144971605,4.465979732268498,False,1.378861873260258e-12

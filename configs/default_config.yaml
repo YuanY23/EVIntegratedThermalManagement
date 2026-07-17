@@ -1,0 +1,49 @@
+seed: 42
+
+simulation:
+  dt_s: 5
+  default_duration_s: 1800
+
+prediction:
+  # 60 steps x 5 s = a physically explicit 300 s forecast horizon.
+  horizon_s: 300
+  history_s: 300
+  hidden_size: 48
+  num_layers: 2
+  batch_size: 64
+  max_epochs: 35
+  patience: 6
+  learning_rate: 0.001
+
+vehicle:
+  mass_kg: 1950
+  frontal_area_m2: 2.35
+  drag_coefficient: 0.27
+  rolling_resistance: 0.0105
+  wheel_radius_m: 0.34
+  final_drive_ratio: 9.1
+  drivetrain_efficiency: 0.97
+  max_traction_power_kw: 180
+  max_regen_power_kw: 80
+
+battery:
+  capacity_kwh: 75
+  nominal_voltage_v: 380
+  nominal_resistance_ohm: 0.065
+  core_heat_capacity_j_k: 380000
+  surface_heat_capacity_j_k: 95000
+  core_surface_conductance_w_k: 380
+  initial_soc: 0.85
+  initial_temp_c: 25
+
+control:
+  cabin_setpoint_c: 24
+  battery_cooling_on_c: 34
+  battery_high_cooling_c: 39
+  battery_heating_on_c: 12
+  motor_cooling_on_c: 70
+  inverter_cooling_on_c: 65
+
+outputs:
+  equivalent_battery_kwh: 75
+
