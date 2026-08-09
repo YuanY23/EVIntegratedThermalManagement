@@ -1,0 +1,10 @@
+parameter,unit,metric,base_metric,normalized_sensitivity,absolute_sensitivity
+battery.core_surface_conductance_w_k,W/K,coolant_heat_rejection_kwh,0.5650807483066521,0.19765463409898587,0.19765463409898587
+battery.core_heat_capacity_j_k,J/K,coolant_heat_rejection_kwh,0.5650807483066521,-0.12079209456909765,0.12079209456909765
+battery.surface_heat_capacity_j_k,J/K,coolant_heat_rejection_kwh,0.5650807483066521,0.026248783677534915,0.026248783677534915
+battery.core_heat_capacity_j_k,J/K,peak_core_temp_c,35.81536088289707,-0.10834736843237457,0.10834736843237457
+battery.core_surface_conductance_w_k,W/K,peak_core_temp_c,35.81536088289707,-0.039160440529631704,0.039160440529631704
+battery.surface_heat_capacity_j_k,J/K,peak_core_temp_c,35.81536088289707,0.001562190969509009,0.001562190969509009
+battery.core_surface_conductance_w_k,W/K,peak_surface_temp_c,30.231390705708865,0.07327707673348326,0.07327707673348326
+battery.core_heat_capacity_j_k,J/K,peak_surface_temp_c,30.231390705708865,-0.0523264796608678,0.0523264796608678
+battery.surface_heat_capacity_j_k,J/K,peak_surface_temp_c,30.231390705708865,-0.023767827226750356,0.023767827226750356

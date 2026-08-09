@@ -5,7 +5,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from ..components.battery import BatteryModel, BatteryParameters, BatteryState
+from ..calibration.parameters import battery_parameters_from_config
+from ..components.battery import BatteryModel, BatteryState
 from ..components.cabin import CabinModel, CabinState
 from ..components.electric_drive import ElectricDriveModel, ElectricDriveState
 from ..components.heat_pump import HeatPumpModel, ptc_heating
@@ -36,7 +37,8 @@ class IntegratedSimulator:
     radiator heat, component state integration, then electrical/thermal ledgers.
     """
 
-    def __init__(self, config: ProjectConfig):
+    def __init__(self, config: ProjectConfig,
+                 calibrated_parameters: dict[str, float] | None = None):
         self.config = config
         v = config.vehicle
         self.vehicle = LongitudinalVehicle(VehicleParameters(
@@ -47,14 +49,9 @@ class IntegratedSimulator:
             max_traction_power_w=v.max_traction_power_kw * 1000,
             max_regen_power_w=v.max_regen_power_kw * 1000,
         ))
-        b = config.battery
-        self.battery = BatteryModel(BatteryParameters(
-            capacity_kwh=b.capacity_kwh, nominal_voltage_v=b.nominal_voltage_v,
-            nominal_resistance_ohm=b.nominal_resistance_ohm,
-            core_heat_capacity_j_k=b.core_heat_capacity_j_k,
-            surface_heat_capacity_j_k=b.surface_heat_capacity_j_k,
-            core_surface_conductance_w_k=b.core_surface_conductance_w_k,
-        ))
+        self.battery = BatteryModel(
+            battery_parameters_from_config(config, calibrated_parameters)
+        )
         self.drive = ElectricDriveModel()
         self.cabin = CabinModel()
         self.heat_pump = HeatPumpModel()

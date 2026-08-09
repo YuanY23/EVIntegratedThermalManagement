@@ -1,0 +1,28 @@
+{
+  "dataset_id": "synthetic-battery-thermal-v1",
+  "data_maturity": "synthetic",
+  "calibration_maturity": "synthetic_recovery",
+  "model_confirmation": false,
+  "claim_scope": "synthetic truth recovery and method verification only",
+  "training_episode_ids": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "holdout_episode_ids": [
+    4,
+    5
+  ],
+  "identification_message": "Identification converged with full-rank local sensitivity",
+  "jacobian_rank": 3,
+  "condition_number": 6.4408091744836975,
+  "holdout_baseline_rmse_c": 0.41383267450725486,
+  "holdout_calibrated_rmse_c": 0.023413897394485066,
+  "holdout_improvement_pct": 94.34218252041995,
+  "hidden_truth": {
+    "battery.core_heat_capacity_j_k": 330000.0,
+    "battery.surface_heat_capacity_j_k": 118000.0,
+    "battery.core_surface_conductance_w_k": 295.0
+  }
+}

@@ -1,0 +1,10 @@
+metric,parameter,spearman_r,absolute_spearman_r,p_value
+coolant_heat_rejection_kwh,battery.core_surface_conductance_w_k,0.908521790880791,0.908521790880791,1.3764927104455278e-49
+coolant_heat_rejection_kwh,battery.core_heat_capacity_j_k,-0.4207505493499359,0.4207505493499359,7.611361642123731e-07
+coolant_heat_rejection_kwh,battery.surface_heat_capacity_j_k,-0.0923022340230727,0.0923022340230727,0.30008531718793224
+peak_core_temp_c,battery.core_heat_capacity_j_k,-0.8315498535066838,0.8315498535066838,5.685678987648751e-34
+peak_core_temp_c,battery.core_surface_conductance_w_k,-0.46014924006592195,0.46014924006592195,4.639062502978163e-08
+peak_core_temp_c,battery.surface_heat_capacity_j_k,-0.04010826771653543,0.04010826771653543,0.6530690015928383
+peak_surface_temp_c,battery.core_surface_conductance_w_k,0.8148377847226491,0.8148377847226491,1.2609633859850387e-31
+peak_surface_temp_c,battery.core_heat_capacity_j_k,-0.4631082641969653,0.4631082641969653,3.705409042854679e-08
+peak_surface_temp_c,battery.surface_heat_capacity_j_k,-0.3458119358365499,0.3458119358365499,6.385149260387752e-05

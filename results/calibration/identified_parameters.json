@@ -1,0 +1,15 @@
+{
+  "dataset_id": "synthetic-battery-thermal-v1",
+  "maturity": "synthetic_recovery",
+  "values": {
+    "battery.core_heat_capacity_j_k": 332293.3177788871,
+    "battery.surface_heat_capacity_j_k": 117035.45780694754,
+    "battery.core_surface_conductance_w_k": 294.21943522972504
+  },
+  "units": {
+    "battery.core_heat_capacity_j_k": "J/K",
+    "battery.surface_heat_capacity_j_k": "J/K",
+    "battery.core_surface_conductance_w_k": "W/K"
+  },
+  "method": "bounded_least_squares"
+}

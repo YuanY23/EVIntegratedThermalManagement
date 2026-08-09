@@ -1,0 +1,106 @@
+schema_version: 1
+
+parameters:
+  - name: battery.core_heat_capacity_j_k
+    unit: J/K
+    default: 380000
+    lower: 220000
+    upper: 600000
+    source: default_config_system_estimate
+    confidence: low
+    model: battery.two_node
+    calibratable: true
+    config_path: battery.core_heat_capacity_j_k
+
+  - name: battery.surface_heat_capacity_j_k
+    unit: J/K
+    default: 95000
+    lower: 45000
+    upper: 180000
+    source: default_config_system_estimate
+    confidence: low
+    model: battery.two_node
+    calibratable: true
+    config_path: battery.surface_heat_capacity_j_k
+
+  - name: battery.core_surface_conductance_w_k
+    unit: W/K
+    default: 380
+    lower: 120
+    upper: 850
+    source: default_config_system_estimate
+    confidence: low
+    model: battery.two_node
+    calibratable: true
+    config_path: battery.core_surface_conductance_w_k
+
+  - name: battery.nominal_resistance_ohm
+    unit: ohm
+    default: 0.065
+    lower: 0.025
+    upper: 0.14
+    source: default_config_equivalent_circuit_estimate
+    confidence: low
+    model: battery.electrical
+    calibratable: true
+    config_path: battery.nominal_resistance_ohm
+
+  - name: hydraulics.battery_loop_resistance_pa_per_kg2_s2
+    unit: Pa/(kg/s)^2
+    default: 360000
+    lower: 80000
+    upper: 1200000
+    source: current_integrated_model_placeholder
+    confidence: low
+    model: hydraulics.network
+    calibratable: true
+
+  - name: hydraulics.powertrain_loop_resistance_pa_per_kg2_s2
+    unit: Pa/(kg/s)^2
+    default: 260000
+    lower: 60000
+    upper: 1000000
+    source: current_integrated_model_placeholder
+    confidence: low
+    model: hydraulics.network
+    calibratable: true
+
+  - name: hydraulics.pump_shutoff_pressure_pa
+    unit: Pa
+    default: 85000
+    lower: 30000
+    upper: 160000
+    source: component_default_pending_supplier_map
+    confidence: low
+    model: hydraulics.pump
+    calibratable: true
+
+  - name: hydraulics.pump_max_mass_flow_kg_s
+    unit: kg/s
+    default: 0.45
+    lower: 0.15
+    upper: 0.8
+    source: component_default_pending_supplier_map
+    confidence: low
+    model: hydraulics.pump
+    calibratable: true
+
+  - name: heat_transfer.battery_radiator_ua_w_k
+    unit: W/K
+    default: 620
+    lower: 150
+    upper: 1800
+    source: current_integrated_model_placeholder
+    confidence: low
+    model: heat_exchanger.radiator
+    calibratable: true
+
+  - name: heat_transfer.liquid_hx_ua_w_k
+    unit: W/K
+    default: 900
+    lower: 150
+    upper: 2200
+    source: component_default_pending_supplier_map
+    confidence: low
+    model: heat_exchanger.liquid_liquid
+    calibratable: true
