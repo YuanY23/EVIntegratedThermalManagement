@@ -127,3 +127,29 @@ def plot_sizing_feasibility(table: pd.DataFrame, path: str | Path) -> Path:
     fig.savefig(output, dpi=180)
     plt.close(fig)
     return output
+
+
+def plot_preconditioning_comparison(table: pd.DataFrame, path: str | Path) -> Path:
+    output = _prepare_path(path)
+    metrics = ["arrival_core_temp_c", "charge_time_min", "preconditioning_energy_kwh",
+               "relative_aging_damage"]
+    labels = ["Arrival core (degC)", "Charge time (min)", "Preconditioning energy (kWh)",
+              "Relative aging damage (-)"]
+    scenarios = list(table["scenario"].drop_duplicates())
+    strategies = list(table["strategy"].drop_duplicates())
+    fig, axes = plt.subplots(1, 4, figsize=(15, 4.5), constrained_layout=True)
+    width = 0.35
+    x = np.arange(len(scenarios))
+    colors = ["#9ca3af", "#287271", "#d97706"]
+    for axis, metric, label in zip(axes, metrics, labels):
+        for index, strategy in enumerate(strategies):
+            subset = table[table["strategy"] == strategy].set_index("scenario").reindex(scenarios)
+            axis.bar(x + (index - (len(strategies) - 1) / 2) * width,
+                     subset[metric], width, label=strategy, color=colors[index])
+        axis.set_xticks(x, scenarios, rotation=25, ha="right")
+        axis.set_title(label, fontsize=9)
+        axis.grid(axis="y", alpha=0.25)
+    axes[0].legend(fontsize=8)
+    fig.savefig(output, dpi=180)
+    plt.close(fig)
+    return output

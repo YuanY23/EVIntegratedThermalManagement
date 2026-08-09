@@ -1,0 +1,11 @@
+{
+  "scenario_count": 3,
+  "baseline_strategies": [
+    "none",
+    "rule"
+  ],
+  "comparison_rows": 6,
+  "all_charge_events_completed": true,
+  "maximum_power_ledger_residual_w": 1.4551915228366852e-11,
+  "aging_claim_scope": "relative strategy comparison only"
+}
