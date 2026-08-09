@@ -24,6 +24,7 @@ from .prediction.predictor import ThermalLoadPredictor
 from .prediction.training import TrainingOptions, TrainingResult, train_model
 from .simulation.integrated import IntegratedSimulator
 from .simulation.scenarios import Scenario, make_scenario, scenario_names
+from .thermal_hydraulics.topologies import HydraulicDesign, architecture_names
 from .visualization import plot_scenario_overview, plot_strategy_comparison, plot_training_history
 
 
@@ -130,6 +131,112 @@ def run_robustness_checks(config: ProjectConfig, duration_s: int = 600) -> pd.Da
             "fallback_expected": not summary.valid,
             "thermal_balance_error_pct": result.metrics["thermal_balance_error_pct"],
         })
+    return pd.DataFrame(rows)
+
+
+def _architecture_feasibility(result) -> tuple[bool, str]:
+    metrics = result.metrics
+    reasons = []
+    if metrics["hydraulic_solver_failures"] > 0:
+        reasons.append("hydraulic_solver_failure")
+    if metrics["thermal_balance_error_pct"] >= 2.0:
+        reasons.append("thermal_balance")
+    if metrics["max_battery_temp_c"] >= 50.0:
+        reasons.append("battery_temperature")
+    if metrics["max_motor_temp_c"] >= 140.0:
+        reasons.append("motor_temperature")
+    return not reasons, "ok" if not reasons else ";".join(reasons)
+
+
+def run_architecture_comparison(config: ProjectConfig, scenarios: list[str] | None = None,
+                                duration_s: int = 900,
+                                design: HydraulicDesign | None = None) -> pd.DataFrame:
+    """Compare three loop architectures under identical scenario initial conditions."""
+    rows = []
+    selected = scenarios or scenario_names()
+    design = design or HydraulicDesign()
+    for scenario_index, scenario_name in enumerate(selected):
+        scenario = make_scenario(
+            scenario_name, duration_s, config.simulation.dt_s, config.seed + scenario_index
+        )
+        for architecture in architecture_names():
+            simulator = IntegratedSimulator(
+                config, architecture=architecture, hydraulic_design=design
+            )
+            result = simulator.run(scenario, "baseline")
+            feasible, reason = _architecture_feasibility(result)
+            rows.append({
+                "scenario": scenario_name,
+                "architecture": architecture,
+                "feasible": feasible,
+                "infeasibility_reason": reason,
+                "pump_scale": design.pump_scale,
+                "radiator_ua_scale": design.radiator_ua_scale,
+                "local_resistance_scale": design.local_resistance_scale,
+                **result.metrics,
+            })
+    return pd.DataFrame(rows)
+
+
+def run_architecture_sizing(config: ProjectConfig, scenario_name: str = "hill_high_load",
+                            duration_s: int = 900,
+                            pump_scales: tuple[float, ...] = (0.4, 0.6, 0.8, 1.0, 1.2),
+                            radiator_ua_scales: tuple[float, ...] = (0.75, 1.0, 1.25)) -> pd.DataFrame:
+    """Scan pump/radiator sizes and retain explicit infeasibility reasons."""
+    scenario = make_scenario(
+        scenario_name, duration_s, config.simulation.dt_s, config.seed + 700
+    )
+    rows = []
+    for architecture in architecture_names():
+        for pump_scale in pump_scales:
+            for radiator_scale in radiator_ua_scales:
+                design = HydraulicDesign(
+                    pump_scale=float(pump_scale), radiator_ua_scale=float(radiator_scale)
+                )
+                try:
+                    simulator = IntegratedSimulator(
+                        config, architecture=architecture, hydraulic_design=design
+                    )
+                    result = simulator.run(scenario, "baseline")
+                    feasible, reason = _architecture_feasibility(result)
+                    battery_capacity = simulator.battery_network.solve(
+                        simulator.battery_pump_model, 1.0, 25.0
+                    )
+                    powertrain_capacity = simulator.powertrain_network.solve(
+                        simulator.powertrain_pump_model, 1.0, 25.0
+                    )
+                    reasons = [] if reason == "ok" else reason.split(";")
+                    if not battery_capacity.converged or battery_capacity.point.mass_flow_kg_s < 0.15:
+                        reasons.append("battery_design_flow_envelope")
+                    if not powertrain_capacity.converged or powertrain_capacity.point.mass_flow_kg_s < 0.18:
+                        reasons.append("powertrain_design_flow_envelope")
+                    feasible = not reasons
+                    reason = "ok" if feasible else ";".join(reasons)
+                    row = {
+                        "architecture": architecture,
+                        "scenario": scenario_name,
+                        "pump_scale": pump_scale,
+                        "radiator_ua_scale": radiator_scale,
+                        "feasible": feasible,
+                        "infeasibility_reason": reason,
+                        "max_battery_flow_kg_s": float(result.timeseries["battery_flow_kg_s"].max()),
+                        "max_powertrain_flow_kg_s": float(result.timeseries["powertrain_flow_kg_s"].max()),
+                        "battery_design_flow_capacity_kg_s": battery_capacity.point.mass_flow_kg_s,
+                        "powertrain_design_flow_capacity_kg_s": powertrain_capacity.point.mass_flow_kg_s,
+                        **result.metrics,
+                    }
+                except RuntimeError as exc:
+                    row = {
+                        "architecture": architecture,
+                        "scenario": scenario_name,
+                        "pump_scale": pump_scale,
+                        "radiator_ua_scale": radiator_scale,
+                        "feasible": False,
+                        "infeasibility_reason": f"solver:{type(exc).__name__}",
+                        "max_battery_flow_kg_s": 0.0,
+                        "max_powertrain_flow_kg_s": 0.0,
+                    }
+                rows.append(row)
     return pd.DataFrame(rows)
 
 

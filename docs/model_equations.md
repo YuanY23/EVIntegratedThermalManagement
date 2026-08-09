@@ -50,7 +50,14 @@ Re = rho*u*D_h/mu
 DeltaP = (f*L/D_h + sum(K))*rho*u^2/2
 ```
 
-层流采用 `f=64/Re`，湍流采用Swamee-Jain显式近似。水泵扬程曲线与系统阻力曲线逐步求交点。泵功为 `P=DeltaP*(m_dot/rho)/eta`，因此增加流量同时增加换热和泵耗。
+层流采用 `f=64/Re`，湍流采用Swamee-Jain显式近似。水泵扬程曲线与全部命名部件压降之和求交点：
+
+```text
+DeltaP_pump(n,m_dot) = sum(DeltaP_pipe + DeltaP_local + DeltaP_plate
+                           + DeltaP_valve + DeltaP_heat_exchanger)
+```
+
+泵功为 `P=DeltaP*(m_dot/rho)/eta`，因此增加流量同时增加换热和泵耗。求解器输出各部件 pressure budget 与闭合残差；不存在交点、关闭阀和非法压降不会被静默裁剪为伪工作点。
 
 ## 6. 冷板与换热器
 
@@ -63,7 +70,7 @@ epsilon = 1-exp(-UA/(m_dot*cp))
 Q = epsilon*m_dot*cp*(T_surface-T_coolant,in)
 ```
 
-散热器和液液换热器采用逆流epsilon-NTU模型。散热器空气侧流量由车速迎风和风扇叠加，风扇功率近似与转速三次方成正比。
+散热器和液液换热器采用逆流epsilon-NTU模型。散热器空气侧流量由车速迎风和风扇叠加，风扇功率近似与转速三次方成正比。液液换热器在两回路热账本中使用同一个 `Q`，一侧为负、另一侧为正，避免耦合热量重复计算。
 
 ## 7. 热泵、PTC与余热
 

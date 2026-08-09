@@ -18,7 +18,15 @@ from ..metrics import simulation_metrics
 from ..thermal_hydraulics.cold_plate import ColdPlate
 from ..thermal_hydraulics.fluid import glycol_properties
 from ..thermal_hydraulics.heat_exchanger import Radiator
-from ..thermal_hydraulics.pump import Pump
+from ..thermal_hydraulics.topologies import (
+    HydraulicDesign,
+    build_battery_network,
+    build_powertrain_network,
+    cross_loop_exchange,
+    make_pump,
+    shared_heat_sink_rejection,
+    validate_architecture,
+)
 from ..vehicle.longitudinal import LongitudinalVehicle, VehicleParameters
 from .scenarios import Scenario
 
@@ -38,8 +46,12 @@ class IntegratedSimulator:
     """
 
     def __init__(self, config: ProjectConfig,
-                 calibrated_parameters: dict[str, float] | None = None):
+                 calibrated_parameters: dict[str, float] | None = None,
+                 architecture: str = "independent_dual_loop",
+                 hydraulic_design: HydraulicDesign | None = None):
         self.config = config
+        self.architecture = validate_architecture(architecture)
+        self.hydraulic_design = hydraulic_design or HydraulicDesign()
         v = config.vehicle
         self.vehicle = LongitudinalVehicle(VehicleParameters(
             mass_kg=v.mass_kg, rolling_resistance=v.rolling_resistance,
@@ -55,10 +67,21 @@ class IntegratedSimulator:
         self.drive = ElectricDriveModel()
         self.cabin = CabinModel()
         self.heat_pump = HeatPumpModel()
-        self.pump = Pump()
+        self.battery_pump_model = make_pump(self.hydraulic_design)
+        self.powertrain_pump_model = make_pump(self.hydraulic_design)
+        self.battery_network = build_battery_network(self.hydraulic_design)
+        self.powertrain_network = build_powertrain_network(self.hydraulic_design)
         self.cold_plate = ColdPlate()
-        self.radiator = Radiator()
-        self.battery_radiator = Radiator(ua_nominal_w_k=620.0, fan_max_power_w=0.0)
+        self.radiator = Radiator(
+            ua_nominal_w_k=850.0 * self.hydraulic_design.radiator_ua_scale
+        )
+        self.battery_radiator = Radiator(
+            ua_nominal_w_k=620.0 * self.hydraulic_design.radiator_ua_scale,
+            fan_max_power_w=0.0,
+        )
+        self.shared_radiator = Radiator(
+            ua_nominal_w_k=1250.0 * self.hydraulic_design.radiator_ua_scale
+        )
 
     def _supervisor(self) -> ThermalSupervisor:
         c = self.config.control
@@ -93,6 +116,11 @@ class IntegratedSimulator:
             "cabin_ptc": FirstOrderActuator(5.0),
         }
         rows: list[dict] = []
+        previous_battery_hydraulic = None
+        previous_powertrain_hydraulic = None
+        battery_consecutive_failures = 0
+        powertrain_consecutive_failures = 0
+        hydraulic_solver_failure_count = 0
 
         acceleration = np.gradient(scenario.speed_mps, scenario.time_s)
         for index, time_s in enumerate(scenario.time_s):
@@ -150,8 +178,36 @@ class IntegratedSimulator:
             battery_chiller_command = actuators["battery_chiller"].update(action.battery_chiller, dt)
             ptc_fraction = actuators["ptc"].update(action.ptc, dt)
             cabin_ptc_fraction = actuators["cabin_ptc"].update(action.cabin_ptc, dt)
-            battery_pump = self.pump.working_point(battery_pump_fraction, 360_000.0)
-            drive_pump = self.pump.working_point(powertrain_pump_fraction, 260_000.0)
+            battery_solve = self.battery_network.solve(
+                self.battery_pump_model, battery_pump_fraction, battery_coolant_c
+            )
+            if battery_solve.converged:
+                previous_battery_hydraulic = battery_solve
+                battery_consecutive_failures = 0
+                battery_hydraulic_status = battery_solve.status
+            else:
+                hydraulic_solver_failure_count += 1
+                battery_consecutive_failures += 1
+                if previous_battery_hydraulic is None or battery_consecutive_failures > 2:
+                    raise RuntimeError(f"Battery hydraulic network failed: {battery_solve.message}")
+                battery_solve = previous_battery_hydraulic
+                battery_hydraulic_status = "fallback_previous_solution"
+            powertrain_solve = self.powertrain_network.solve(
+                self.powertrain_pump_model, powertrain_pump_fraction, powertrain_coolant_c
+            )
+            if powertrain_solve.converged:
+                previous_powertrain_hydraulic = powertrain_solve
+                powertrain_consecutive_failures = 0
+                powertrain_hydraulic_status = powertrain_solve.status
+            else:
+                hydraulic_solver_failure_count += 1
+                powertrain_consecutive_failures += 1
+                if previous_powertrain_hydraulic is None or powertrain_consecutive_failures > 2:
+                    raise RuntimeError(f"Powertrain hydraulic network failed: {powertrain_solve.message}")
+                powertrain_solve = previous_powertrain_hydraulic
+                powertrain_hydraulic_status = "fallback_previous_solution"
+            battery_pump = battery_solve.point
+            drive_pump = powertrain_solve.point
             battery_fluid = glycol_properties(battery_coolant_c)
             cold_plate = self.cold_plate.exchange(battery_state.surface_temp_c, battery_coolant_c,
                                                   battery_pump.mass_flow_kg_s, battery_fluid)
@@ -168,6 +224,35 @@ class IntegratedSimulator:
             drive_state = drive_step.state
             radiator = self.radiator.exchange(powertrain_coolant_c, ambient,
                                                drive_pump.mass_flow_kg_s, speed, fan_fraction)
+            loop_exchange = cross_loop_exchange(
+                self.architecture,
+                powertrain_coolant_c,
+                battery_coolant_c,
+                drive_pump.mass_flow_kg_s,
+                battery_pump.mass_flow_kg_s,
+                self.hydraulic_design.liquid_hx_ua_w_k,
+            )
+            drive_to_battery_heat = loop_exchange.drive_to_battery_heat_w
+            drive_radiator_heat = radiator.heat_rejected_w
+            radiator_fan_power = radiator.fan_power_w
+            shared_sink_heat = 0.0
+            shared_sink_mixed_temp = ambient
+            if self.architecture == "shared_heat_sink":
+                shared = shared_heat_sink_rejection(
+                    self.shared_radiator,
+                    battery_coolant_c,
+                    powertrain_coolant_c,
+                    ambient,
+                    battery_pump.mass_flow_kg_s,
+                    drive_pump.mass_flow_kg_s,
+                    speed,
+                    fan_fraction,
+                )
+                battery_radiator_heat = shared.battery_heat_rejected_w
+                drive_radiator_heat = shared.powertrain_heat_rejected_w
+                radiator_fan_power = shared.fan_power_w
+                shared_sink_heat = shared.total_heat_rejected_w
+                shared_sink_mixed_temp = shared.mixed_inlet_temp_c
 
             # Waste heat is limited by available electric-drive losses and cabin
             # request. It displaces heat-pump output before PTC is considered.
@@ -200,7 +285,7 @@ class IntegratedSimulator:
             cabin_state = cabin_step.state
 
             aux_power = (battery_pump.electrical_power_w + drive_pump.electrical_power_w +
-                         radiator.fan_power_w + hp.electrical_power_w + cabin_ptc_power +
+                         radiator_fan_power + hp.electrical_power_w + cabin_ptc_power +
                          battery_heater_power + battery_chiller.electrical_power_w)
             battery_total_requested = drive_step.dc_power_w + aux_power
             battery_step = self.battery.step(battery_state, battery_total_requested,
@@ -213,11 +298,12 @@ class IntegratedSimulator:
             batt_coolant_capacity = 3.5 * battery_fluid.cp_j_kgk
             battery_coolant_c += dt * (battery_step.diagnostics.coolant_heat_w
                                        - battery_radiator_heat - battery_chiller_heat
+                                       + drive_to_battery_heat
                                        - 90.0 * (battery_coolant_c - ambient)) / batt_coolant_capacity
             drive_fluid = glycol_properties(powertrain_coolant_c)
             drive_coolant_capacity = 5.5 * drive_fluid.cp_j_kgk
-            powertrain_coolant_c += dt * (drive_step.losses.coolant_heat_w - radiator.heat_rejected_w
-                                          - waste_heat) / drive_coolant_capacity
+            powertrain_coolant_c += dt * (drive_step.losses.coolant_heat_w - drive_radiator_heat
+                                          - waste_heat - drive_to_battery_heat) / drive_coolant_capacity
 
             # The electrical ledger identity uses actual terminal power. Its
             # residual is retained rather than hidden, enabling acceptance tests.
@@ -250,11 +336,13 @@ class IntegratedSimulator:
             battery_coolant_storage_w = batt_coolant_capacity * (
                 battery_coolant_c - previous_battery_coolant_c) / dt
             battery_coolant_boundary_w = (battery_step.diagnostics.coolant_heat_w -
-                                          battery_radiator_heat - battery_chiller_heat -
-                                          90.0 * (previous_battery_coolant_c - ambient))
+                                           battery_radiator_heat - battery_chiller_heat -
+                                           90.0 * (previous_battery_coolant_c - ambient) +
+                                           drive_to_battery_heat)
             drive_coolant_storage_w = drive_coolant_capacity * (
                 powertrain_coolant_c - previous_powertrain_coolant_c) / dt
-            drive_coolant_boundary_w = (drive_step.losses.coolant_heat_w - radiator.heat_rejected_w - waste_heat)
+            drive_coolant_boundary_w = (drive_step.losses.coolant_heat_w - drive_radiator_heat -
+                                        waste_heat - drive_to_battery_heat)
             thermal_residual = ((battery_storage_w - battery_boundary_w) +
                                 (drive_storage_w - drive_boundary_w) +
                                 (cabin_storage_w - cabin_boundary_w) +
@@ -278,7 +366,7 @@ class IntegratedSimulator:
                 "powertrain_to_coolant_heat_w": drive_step.losses.coolant_heat_w,
                 "cabin_load_w": cabin_step.diagnostics.net_unconditioned_load_w,
                 "auxiliary_power_w": aux_power, "pump_power_w": battery_pump.electrical_power_w + drive_pump.electrical_power_w,
-                "fan_power_w": radiator.fan_power_w, "compressor_power_w": hp.electrical_power_w,
+                "fan_power_w": radiator_fan_power, "compressor_power_w": hp.electrical_power_w,
                 "battery_chiller_power_w": battery_chiller.electrical_power_w,
                 "ptc_power_w": cabin_ptc_power + battery_heater_power,
                 "battery_heater_power_w": battery_heater_power,
@@ -287,8 +375,22 @@ class IntegratedSimulator:
                 "battery_flow_kg_s": battery_pump.mass_flow_kg_s,
                 "powertrain_flow_kg_s": drive_pump.mass_flow_kg_s,
                 "battery_pressure_drop_pa": battery_pump.pressure_rise_pa,
-                "radiator_heat_w": radiator.heat_rejected_w,
+                "battery_system_pressure_drop_pa": battery_pump.pressure_rise_pa,
+                "powertrain_system_pressure_drop_pa": drive_pump.pressure_rise_pa,
+                "battery_cold_plate_pressure_drop_pa": battery_solve.component_pressure_drop_pa.get("battery_cold_plate", 0.0),
+                "battery_pipe_pressure_drop_pa": battery_solve.component_pressure_drop_pa.get("battery_supply_return_pipe", 0.0),
+                "battery_hydraulic_closure_residual_pa": battery_solve.closure_residual_pa,
+                "powertrain_hydraulic_closure_residual_pa": powertrain_solve.closure_residual_pa,
+                "battery_hydraulic_status": battery_hydraulic_status,
+                "powertrain_hydraulic_status": powertrain_hydraulic_status,
+                "hydraulic_solver_failure_count": hydraulic_solver_failure_count,
+                "radiator_heat_w": drive_radiator_heat,
                 "battery_radiator_heat_w": battery_radiator_heat,
+                "liquid_hx_drive_to_battery_heat_w": drive_to_battery_heat,
+                "liquid_hx_effectiveness": loop_exchange.effectiveness,
+                "shared_sink_heat_w": shared_sink_heat,
+                "shared_sink_mixed_temp_c": shared_sink_mixed_temp,
+                "architecture": self.architecture,
                 "battery_chiller_heat_w": battery_chiller_heat,
                 "battery_cooling_heat_w": battery_step.diagnostics.coolant_heat_w,
                 "hvac_heat_w": hvac_heat, "heat_pump_cop": hp.cop,

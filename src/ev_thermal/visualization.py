@@ -92,3 +92,38 @@ def plot_training_history(history: list[dict], path: str | Path) -> Path:
     plt.close(fig)
     return output
 
+
+def plot_architecture_comparison(table: pd.DataFrame, path: str | Path) -> Path:
+    output = _prepare_path(path)
+    metrics = ["max_battery_temp_c", "max_motor_temp_c", "pump_energy_kwh", "auxiliary_energy_kwh"]
+    labels = ["Battery peak (degC)", "Motor peak (degC)", "Pump energy (kWh)", "Aux energy (kWh)"]
+    grouped = table.groupby("architecture")[metrics].mean()
+    fig, axes = plt.subplots(1, 4, figsize=(15, 4.5), constrained_layout=True)
+    colors = ["#287271", "#d97706", "#5b6bbf"]
+    for axis, metric, label in zip(axes, metrics, labels):
+        grouped[metric].plot.bar(ax=axis, color=colors, rot=20)
+        axis.set_title(label, fontsize=9)
+        axis.set_xlabel("")
+        axis.grid(axis="y", alpha=0.25)
+    fig.savefig(output, dpi=180)
+    plt.close(fig)
+    return output
+
+
+def plot_sizing_feasibility(table: pd.DataFrame, path: str | Path) -> Path:
+    output = _prepare_path(path)
+    architectures = list(table["architecture"].drop_duplicates())
+    fig, axes = plt.subplots(1, len(architectures), figsize=(5 * len(architectures), 4.5),
+                             sharex=True, sharey=True, constrained_layout=True)
+    axes = np.atleast_1d(axes)
+    for axis, architecture in zip(axes, architectures):
+        subset = table[table["architecture"] == architecture]
+        colors = np.where(subset["feasible"], "#287271", "#dc2626")
+        axis.scatter(subset["pump_scale"], subset["radiator_ua_scale"], c=colors, s=80)
+        axis.set_title(architecture.replace("_", " "), fontsize=9)
+        axis.set_xlabel("Pump scale (-)")
+        axis.grid(alpha=0.25)
+    axes[0].set_ylabel("Radiator UA scale (-)")
+    fig.savefig(output, dpi=180)
+    plt.close(fig)
+    return output

@@ -33,4 +33,13 @@ def simulation_metrics(frame: pd.DataFrame, battery_capacity_kwh: float = 75.0) 
         "waste_heat_recovered_kwh": float(np.sum(frame["waste_heat_recovered_w"]) * dt / 3.6e6),
         "energy_balance_error_pct": 100.0 * residual / max(balance_input, 1.0),
         "thermal_balance_error_pct": 100.0 * thermal_residual / max(thermal_throughput, 1.0),
+        "pump_energy_kwh": float(np.sum(frame["pump_power_w"]) * dt / 3.6e6),
+        "mean_battery_flow_kg_s": float(frame["battery_flow_kg_s"].mean()),
+        "mean_powertrain_flow_kg_s": float(frame["powertrain_flow_kg_s"].mean()),
+        "max_battery_pressure_drop_kpa": float(frame["battery_system_pressure_drop_pa"].max() / 1000.0),
+        "max_powertrain_pressure_drop_kpa": float(frame["powertrain_system_pressure_drop_pa"].max() / 1000.0),
+        "hydraulic_solver_failures": float(frame["hydraulic_solver_failure_count"].max()),
+        "liquid_hx_energy_kwh": float(
+            np.sum(np.abs(frame["liquid_hx_drive_to_battery_heat_w"])) * dt / 3.6e6
+        ),
     }

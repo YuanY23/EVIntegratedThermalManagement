@@ -1,0 +1,4 @@
+architecture,rank_max_battery_temp_c,rank_max_motor_temp_c,rank_pump_energy_kwh,rank_auxiliary_energy_kwh,engineering_rank_score
+shared_heat_sink,1.0,2.5,1.0,1.1666666666666667,5.666666666666667
+independent_dual_loop,2.0833333333333335,2.3333333333333335,2.0833333333333335,2.25,8.75
+coupled_dual_loop,2.9166666666666665,1.1666666666666667,2.9166666666666665,2.5833333333333335,9.583333333333334
