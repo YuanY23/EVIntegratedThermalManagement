@@ -10,6 +10,13 @@ import json
 import numpy as np
 import pandas as pd
 
+from .artifacts import (
+    compute_plant_sha256,
+    create_run_layout,
+    promote_run,
+    update_latest_pointer,
+    write_run_manifest,
+)
 from .config import PROJECT_ROOT, ProjectConfig, load_config, set_seed
 from .control.predictive import ForecastSummary
 from .prediction.dataset import SequenceDatasetBuilder
@@ -126,24 +133,38 @@ def run_robustness_checks(config: ProjectConfig, duration_s: int = 600) -> pd.Da
     return pd.DataFrame(rows)
 
 
-def run_all(project_root: str | Path = PROJECT_ROOT, quick: bool = False) -> dict:
+def _config_sha256(project_root: Path) -> str:
+    return hashlib.sha256(
+        (project_root / "configs" / "default_config.yaml").read_bytes()
+    ).hexdigest()
+
+
+def _plant_sha256(project_root: Path) -> str:
+    return compute_plant_sha256(project_root)
+
+
+def run_all(project_root: str | Path = PROJECT_ROOT, quick: bool = False,
+            run_id: str | None = None) -> dict:
     root = Path(project_root)
     config = load_config(root / "configs" / "default_config.yaml")
     set_seed(config.seed)
-    data_path = root / "data" / "processed" / "thermal_load_episodes.csv"
-    model_dir = root / "models"
+    profile = "quick" if quick else "formal"
+    layout = create_run_layout(root, profile, run_id=run_id)
+    data_path = layout.data_dir / "thermal_load_episodes.csv"
+    model_dir = layout.model_dir
     episode_count = 6 if quick else 24
     duration = 650 if quick else 1200
     frame = generate_simulation_dataset(config, data_path, episode_count, duration, config.seed)
     training = train_predictor_from_frame(config, frame, model_dir, quick)
     predictor = ThermalLoadPredictor(model_dir)
+    selected_scenarios = ["urban_hot", "cold_start"] if quick else scenario_names()
     comparison, trajectories = run_strategy_comparison(
-        config, ["urban_hot", "cold_start"] if quick else scenario_names(),
+        config, selected_scenarios,
         600 if quick else 1800, predictor,
     )
-    tables = root / "results" / "tables"
-    figures = root / "results" / "figures"
-    logs = root / "results" / "logs"
+    tables = layout.tables_dir
+    figures = layout.figures_dir
+    logs = layout.logs_dir
     for path in (tables, figures, logs):
         path.mkdir(parents=True, exist_ok=True)
     comparison.to_csv(tables / "strategy_comparison.csv", index=False)
@@ -153,13 +174,45 @@ def run_all(project_root: str | Path = PROJECT_ROOT, quick: bool = False) -> dic
     plot_training_history(training.history, figures / "training_history.png")
     for key, trajectory in trajectories.items():
         plot_scenario_overview(trajectory, figures / f"overview_{key[0]}_{key[1]}.png")
-    manifest = {
-        "config_sha256": hashlib.sha256((root / "configs" / "default_config.yaml").read_bytes()).hexdigest(),
-        "seed": config.seed, "quick": quick, "episode_count": episode_count,
+
+    config_hash = _config_sha256(root)
+    plant_hash = _plant_sha256(root)
+    model_manifest = {
+        "schema_version": 1,
+        "profile": profile,
+        "config_sha256": config_hash,
+        "plant_sha256": plant_hash,
+        "episode_count": episode_count,
+        "training_best_epoch": training.best_epoch,
+        "forecast_metrics": training.metrics,
+    }
+    (model_dir / "model_manifest.json").write_text(
+        json.dumps(model_manifest, indent=2), encoding="utf-8"
+    )
+
+    expected_files = [
+        data_path.relative_to(layout.run_root),
+        *[path.relative_to(layout.run_root) for path in model_dir.iterdir() if path.is_file()],
+        (tables / "strategy_comparison.csv").relative_to(layout.run_root),
+        (tables / "robustness_checks.csv").relative_to(layout.run_root),
+        *[path.relative_to(layout.run_root) for path in figures.glob("*.png")],
+    ]
+    manifest = write_run_manifest(layout, {
+        "config_sha256": config_hash,
+        "plant_sha256": plant_hash,
+        "seed": config.seed,
+        "quick": quick,
+        "episode_count": episode_count,
         "training_best_epoch": training.best_epoch,
         "forecast_metrics": training.metrics,
         "comparison_rows": len(comparison),
         "robustness_cases": len(robustness),
-    }
-    (logs / "run_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        "scenarios": selected_scenarios,
+        "strategies": ["baseline", "predictive"],
+    }, expected_files)
+    if quick:
+        update_latest_pointer(layout)
+    else:
+        promote_run(layout)
+        manifest = json.loads(layout.manifest_path.read_text(encoding="utf-8"))
     return manifest

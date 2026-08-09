@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "profile": "formal",
+  "config_sha256": "7100b0c08bb7648c00dd9ef38b9ff121067e916ab8ba6c3d11bf0e873200826c",
+  "plant_sha256": "5b2c131a4069f5a8d65c279c05e5cd850d0b5e706a032390476641141d21a8f3",
+  "episode_count": 24,
+  "training_best_epoch": 35,
+  "forecast_metrics": {
+    "mae_battery_heat_w": 396.8586120605469,
+    "rmse_battery_heat_w": 589.5307006835938,
+    "r2_battery_heat_w": 0.5388606197378508,
+    "mae_powertrain_heat_w": 427.95001220703125,
+    "rmse_powertrain_heat_w": 537.2576904296875,
+    "r2_powertrain_heat_w": 0.5673579585867485,
+    "mae_cabin_load_w": 153.75161743164062,
+    "rmse_cabin_load_w": 206.33834838867188,
+    "r2_cabin_load_w": 0.9809200714583546,
+    "mae_all_targets_at_60s": 337.9280090332031,
+    "mae_all_targets_at_180s": 381.1927795410156,
+    "mae_all_targets_at_300s": 396.2341613769531
+  }
+}

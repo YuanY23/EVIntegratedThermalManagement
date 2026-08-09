@@ -7,4 +7,4 @@ data/processed/*.npz
 models/*.pt
 models/*.joblib
 results/logs/*.log
-
+artifacts/

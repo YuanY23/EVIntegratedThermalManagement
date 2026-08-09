@@ -10,10 +10,10 @@ from ev_thermal.pipeline import run_all
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--quick", action="store_true", help="Small end-to-end verification run")
+    parser.add_argument("--run-id", help="Optional stable run identifier for automation")
     args = parser.parse_args()
-    print(json.dumps(run_all(ROOT, quick=args.quick), indent=2))
+    print(json.dumps(run_all(ROOT, quick=args.quick, run_id=args.run_id), indent=2))
 
 
 if __name__ == "__main__":
     main()
-

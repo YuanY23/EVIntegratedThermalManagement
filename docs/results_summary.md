@@ -1,5 +1,7 @@
 # 正式实验结果总结
 
+本文数值对应 `artifacts/latest/formal.json` 指向、并经 `experiments/verify_artifacts.py` 验证的正式运行；机器可读来源为同一 run 的 manifest、模型指标与结果表。quick 运行不具备正式结论资格。
+
 ## 实验设置
 
 - 随机种子：42；
