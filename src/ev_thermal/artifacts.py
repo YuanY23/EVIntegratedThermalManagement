@@ -19,6 +19,58 @@ from .simulation.scenarios import scenario_names
 MANIFEST_SCHEMA_VERSION = 2
 FORMAL_EPISODE_COUNT = 24
 STRATEGIES = ("baseline", "predictive")
+UPGRADE_SUITE_ARTIFACTS = {
+    "calibration": (
+        "synthetic_training_observations.csv",
+        "synthetic_holdout_observations.csv",
+        "parameter_estimates.csv",
+        "identified_parameters.json",
+        "identification_residuals.csv",
+        "holdout_validation_metrics.csv",
+        "local_sensitivity.csv",
+        "global_sensitivity_rankings.csv",
+        "global_sensitivity_intervals.csv",
+        "maturity_statement.json",
+        "calibration_summary.png",
+    ),
+    "architecture": (
+        "architecture_comparison.csv",
+        "component_sizing_feasibility.csv",
+        "architecture_ranking.csv",
+        "architecture_summary.json",
+        "architecture_comparison.png",
+        "component_sizing_feasibility.png",
+    ),
+    "charging": (
+        "preconditioning_comparison.csv",
+        "preconditioning_robustness.csv",
+        "preconditioning_summary.json",
+        "preconditioning_comparison.png",
+        *(f"route_{scenario}_{strategy}.csv" for scenario in (
+            "cold_arrival", "mild_arrival", "hot_arrival"
+        ) for strategy in ("none", "rule")),
+        *(f"charge_{scenario}_{strategy}.csv" for scenario in (
+            "cold_arrival", "mild_arrival", "hot_arrival"
+        ) for strategy in ("none", "rule")),
+    ),
+    "optimization": (
+        "joint_optimization_candidates.csv",
+        "joint_optimization_pareto.csv",
+        "joint_optimization_recommended.csv",
+        "constraint_audit.csv",
+        "optimization_robustness.csv",
+        "joint_optimization_summary.json",
+        "joint_optimization_pareto.png",
+    ),
+}
+UPGRADE_ARTIFACTS = tuple(
+    [
+        f"results/{suite}/{filename}"
+        for suite, filenames in UPGRADE_SUITE_ARTIFACTS.items()
+        for filename in filenames
+    ]
+    + [f"results/{suite}/suite_manifest.json" for suite in UPGRADE_SUITE_ARTIFACTS]
+)
 
 
 class ArtifactValidationError(ValueError):
@@ -115,10 +167,11 @@ def hash_source_tree(paths: list[Path], base_dir: str | Path | None = None) -> s
 
 
 def compute_plant_sha256(project_root: str | Path) -> str:
-    """Hash the executable thermal-management source and default configuration."""
+    """Hash executable models, experiment generators, and their configurations."""
     root = Path(project_root).resolve()
     source_files = list((root / "src" / "ev_thermal").rglob("*.py"))
-    source_files.append(root / "configs" / "default_config.yaml")
+    source_files.extend((root / "experiments").glob("*.py"))
+    source_files.extend((root / "configs").glob("*.yaml"))
     return hash_source_tree(source_files, base_dir=root)
 
 
@@ -156,7 +209,7 @@ def write_run_manifest(layout: RunLayout, metadata: dict,
     return manifest
 
 
-def _load_manifest(run_root: Path) -> tuple[Path, dict]:
+def _load_manifest(run_root: Path) -> dict:
     manifest_path = run_root / "results" / "logs" / "run_manifest.json"
     if not manifest_path.is_file():
         raise ArtifactValidationError(f"Missing run manifest: {manifest_path}")
@@ -164,14 +217,14 @@ def _load_manifest(run_root: Path) -> tuple[Path, dict]:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
         raise ArtifactValidationError(f"Invalid run manifest: {exc}") from exc
-    return manifest_path, manifest
+    return manifest
 
 
 def validate_run_artifacts(run_root: str | Path, require_formal: bool = True,
                            expected_plant_sha256: str | None = None) -> dict:
     """Validate provenance, hashes, completeness, and numerical result semantics."""
     root = Path(run_root).resolve()
-    _, manifest = _load_manifest(root)
+    manifest = _load_manifest(root)
     if manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION:
         raise ArtifactValidationError("Unsupported manifest schema version")
     if require_formal and manifest.get("profile") != "formal":
@@ -186,6 +239,29 @@ def validate_run_artifacts(run_root: str | Path, require_formal: bool = True,
     hashes = manifest.get("artifact_sha256")
     if not isinstance(hashes, dict) or not hashes:
         raise ArtifactValidationError("Manifest has no artifact hashes")
+    expected_pairs = {(scenario, strategy) for scenario in scenario_names() for strategy in STRATEGIES}
+    expected_figures = {"strategy_comparison.png", "training_history.png"} | {
+        f"overview_{scenario}_{strategy}.png" for scenario, strategy in expected_pairs
+    }
+    expected_hashed_paths = {
+        "data/processed/thermal_load_episodes.csv",
+        "models/thermal_load_lstm.pt",
+        "models/feature_scaler.joblib",
+        "models/target_scaler.joblib",
+        "models/training_history.json",
+        "models/model_manifest.json",
+        "models/test_metrics.json",
+        "results/tables/strategy_comparison.csv",
+        "results/tables/robustness_checks.csv",
+        *(f"results/figures/{name}" for name in expected_figures),
+    }
+    if set(hashes) != expected_hashed_paths:
+        missing_hashes = sorted(expected_hashed_paths - set(hashes))
+        unexpected_hashes = sorted(set(hashes) - expected_hashed_paths)
+        raise ArtifactValidationError(
+            f"Manifest artifact hash set mismatch; missing={missing_hashes}, "
+            f"unexpected={unexpected_hashes}"
+        )
     for raw_relative, expected_hash in hashes.items():
         relative = _safe_relative_path(raw_relative)
         path = root / relative
@@ -223,7 +299,6 @@ def validate_run_artifacts(run_root: str | Path, require_formal: bool = True,
         )
 
     comparison = pd.read_csv(comparison_path)
-    expected_pairs = {(scenario, strategy) for scenario in scenario_names() for strategy in STRATEGIES}
     actual_pairs = set(zip(comparison.get("scenario", []), comparison.get("strategy", [])))
     if len(comparison) != len(expected_pairs) or actual_pairs != expected_pairs:
         raise ArtifactValidationError("Strategy comparison is not the complete 6x2 scenario-strategy matrix")
@@ -252,9 +327,6 @@ def validate_run_artifacts(run_root: str | Path, require_formal: bool = True,
         if model_manifest.get(key) != manifest.get(key):
             raise ArtifactValidationError(f"Model manifest does not match run manifest: {key}")
 
-    expected_figures = {"strategy_comparison.png", "training_history.png"} | {
-        f"overview_{scenario}_{strategy}.png" for scenario, strategy in expected_pairs
-    }
     figures_dir = root / "results" / "figures"
     actual_figures = {path.name for path in figures_dir.glob("*.png")}
     if actual_figures != expected_figures:
@@ -281,7 +353,7 @@ def promote_run(layout: RunLayout) -> dict:
         require_formal=True,
         expected_plant_sha256=compute_plant_sha256(layout.project_root),
     )
-    _, manifest = _load_manifest(layout.run_root)
+    manifest = _load_manifest(layout.run_root)
     for raw_relative in manifest["artifact_sha256"]:
         relative = _safe_relative_path(raw_relative)
         destination = layout.project_root / relative
@@ -295,14 +367,7 @@ def promote_run(layout: RunLayout) -> dict:
     canonical_manifest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(layout.manifest_path, canonical_manifest)
 
-    latest_dir = layout.project_root / "artifacts" / "latest"
-    latest_dir.mkdir(parents=True, exist_ok=True)
-    pointer = {
-        "run_id": layout.run_id,
-        "profile": layout.profile,
-        "run_root": layout.run_root.relative_to(layout.project_root).as_posix(),
-    }
-    (latest_dir / "formal.json").write_text(json.dumps(pointer, indent=2), encoding="utf-8")
+    update_latest_pointer(layout)
     return summary
 
 
@@ -341,3 +406,191 @@ def resolve_latest_run(project_root: str | Path, profile: str = "formal") -> Pat
     if runs_root not in run_root.parents:
         raise ArtifactValidationError("Latest-run pointer escapes the runs directory")
     return run_root
+
+
+def write_upgrade_suite_manifest(
+    project_root: str | Path, suite: str, output_dir: str | Path | None = None
+) -> dict:
+    """Bind one upgrade suite's complete evidence set to the current plant."""
+    root = Path(project_root).resolve()
+    if suite not in UPGRADE_SUITE_ARTIFACTS:
+        raise ValueError(f"Unknown upgrade suite: {suite}")
+    suite_root = Path(output_dir).resolve() if output_dir is not None else root / "results" / suite
+    hashes = {}
+    for filename in UPGRADE_SUITE_ARTIFACTS[suite]:
+        path = suite_root / filename
+        if not path.is_file() or path.stat().st_size == 0:
+            raise ArtifactValidationError(f"Missing {suite} suite artifact: {filename}")
+        hashes[filename] = _sha256(path)
+    manifest = {
+        "schema_version": 1,
+        "suite": suite,
+        "status": "verified",
+        "plant_sha256": compute_plant_sha256(root),
+        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "artifact_sha256": hashes,
+    }
+    output = suite_root / "suite_manifest.json"
+    output.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return manifest
+
+
+def _validate_upgrade_suite_manifests(root: Path) -> None:
+    current_plant = compute_plant_sha256(root)
+    for suite, filenames in UPGRADE_SUITE_ARTIFACTS.items():
+        suite_root = root / "results" / suite
+        manifest_path = suite_root / "suite_manifest.json"
+        if not manifest_path.is_file():
+            raise ArtifactValidationError(f"Missing {suite} suite manifest")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if (
+            manifest.get("schema_version") != 1
+            or manifest.get("suite") != suite
+            or manifest.get("status") != "verified"
+        ):
+            raise ArtifactValidationError(f"Invalid {suite} suite manifest")
+        if manifest.get("plant_sha256") != current_plant:
+            raise ArtifactValidationError(f"{suite} evidence was generated by a different plant")
+        hashes = manifest.get("artifact_sha256", {})
+        if set(hashes) != set(filenames):
+            raise ArtifactValidationError(f"{suite} suite manifest artifact set mismatch")
+        for filename, expected_hash in hashes.items():
+            path = suite_root / filename
+            if not path.is_file() or _sha256(path) != expected_hash:
+                raise ArtifactValidationError(f"{suite} suite artifact hash mismatch: {filename}")
+
+
+def write_upgrade_manifest(project_root: str | Path) -> dict:
+    """Bind calibration, architecture, charging, and optimization evidence to the formal plant."""
+    root = Path(project_root).resolve()
+    _validate_upgrade_suite_manifests(root)
+    formal_root = resolve_latest_run(root, "formal")
+    validate_run_artifacts(
+        formal_root,
+        require_formal=True,
+        expected_plant_sha256=compute_plant_sha256(root),
+    )
+    formal_manifest = _load_manifest(formal_root)
+    hashes = {}
+    for raw_relative in UPGRADE_ARTIFACTS:
+        path = root / raw_relative
+        if not path.is_file() or path.stat().st_size == 0:
+            raise ArtifactValidationError(f"Missing upgrade artifact: {raw_relative}")
+        hashes[raw_relative] = _sha256(path)
+    manifest = {
+        "schema_version": 1,
+        "profile": "formal-upgrade",
+        "status": "verified",
+        "formal_run_id": formal_manifest["run_id"],
+        "plant_sha256": formal_manifest["plant_sha256"],
+        "config_sha256": formal_manifest["config_sha256"],
+        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "artifact_sha256": hashes,
+    }
+    output = root / "results" / "logs" / "upgrade_manifest.json"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return manifest
+
+
+def _validate_pareto_by_scenario(candidates: pd.DataFrame, pareto: pd.DataFrame) -> None:
+    """Reject Pareto rows dominated within their own independent scenario."""
+    objective_columns = [
+        "charge_time_s", "preconditioning_energy_kwh", "relative_aging_damage"
+    ]
+    feasible = candidates[candidates["feasible"]]
+    for _, pareto_row in pareto.iterrows():
+        scenario_values = feasible.loc[
+            feasible["scenario"] == pareto_row["scenario"], objective_columns
+        ].to_numpy(dtype=float)
+        candidate = pareto_row[objective_columns].to_numpy(dtype=float)
+        if np.any(
+            np.all(scenario_values <= candidate, axis=1)
+            & np.any(scenario_values < candidate, axis=1)
+        ):
+            raise ArtifactValidationError("Exported Pareto table contains a dominated candidate")
+
+
+def validate_upgrade_artifacts(project_root: str | Path) -> dict:
+    """Cross-check every upgrade suite and its binding to the latest formal run."""
+    root = Path(project_root).resolve()
+    manifest_path = root / "results" / "logs" / "upgrade_manifest.json"
+    if not manifest_path.is_file():
+        raise ArtifactValidationError("Missing upgrade manifest: results/logs/upgrade_manifest.json")
+    _validate_upgrade_suite_manifests(root)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("schema_version") != 1 or manifest.get("profile") != "formal-upgrade":
+        raise ArtifactValidationError("Invalid upgrade manifest schema or profile")
+    formal_root = resolve_latest_run(root, "formal")
+    formal_manifest = _load_manifest(formal_root)
+    if manifest.get("formal_run_id") != formal_manifest.get("run_id"):
+        raise ArtifactValidationError("Upgrade evidence is bound to a different formal run")
+    current_plant = compute_plant_sha256(root)
+    if manifest.get("plant_sha256") != current_plant:
+        raise ArtifactValidationError("Upgrade evidence was generated by a different plant version")
+    hashes = manifest.get("artifact_sha256", {})
+    if set(hashes) != set(UPGRADE_ARTIFACTS):
+        raise ArtifactValidationError("Upgrade manifest does not contain the exact required artifact set")
+    for raw_relative, expected_hash in hashes.items():
+        path = root / _safe_relative_path(raw_relative)
+        if not path.is_file() or path.stat().st_size == 0:
+            raise ArtifactValidationError(f"Missing upgrade artifact: {raw_relative}")
+        if _sha256(path) != expected_hash:
+            raise ArtifactValidationError(f"Upgrade artifact hash mismatch: {raw_relative}")
+
+    maturity = json.loads(
+        (root / "results" / "calibration" / "maturity_statement.json").read_text(encoding="utf-8")
+    )
+    if maturity.get("model_confirmation") is not False or maturity.get("data_maturity") != "synthetic":
+        raise ArtifactValidationError("Calibration maturity statement overclaims available evidence")
+    validation = pd.read_csv(root / "results" / "calibration" / "holdout_validation_metrics.csv")
+    if set(validation["parameter_set"]) != {"baseline", "calibrated"}:
+        raise ArtifactValidationError("Calibration holdout table is incomplete")
+    indexed_validation = validation.set_index("parameter_set")
+    if indexed_validation.loc["calibrated", "combined_rmse_c"] >= indexed_validation.loc[
+        "baseline", "combined_rmse_c"
+    ]:
+        raise ArtifactValidationError("Calibrated parameters do not improve holdout RMSE")
+
+    architecture = pd.read_csv(root / "results" / "architecture" / "architecture_comparison.csv")
+    if len(architecture) != 18 or architecture["architecture"].nunique() != 3 or architecture["scenario"].nunique() != 6:
+        raise ArtifactValidationError("Architecture comparison must contain the complete 6x3 matrix")
+    architecture_summary = json.loads(
+        (root / "results" / "architecture" / "architecture_summary.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    recommended_architecture = architecture_summary.get("recommended_by_equal_rank")
+    recommended_rows = architecture[architecture["architecture"] == recommended_architecture]
+    if len(recommended_rows) != 6 or not recommended_rows["feasible"].all():
+        raise ArtifactValidationError("Recommended architecture is not feasible in every scenario")
+    sizing = pd.read_csv(root / "results" / "architecture" / "component_sizing_feasibility.csv")
+    if not sizing["feasible"].any() or sizing["feasible"].all():
+        raise ArtifactValidationError("Sizing study must contain both feasible and infeasible points")
+
+    charging = pd.read_csv(root / "results" / "charging" / "preconditioning_comparison.csv")
+    if len(charging) != 6 or charging["scenario"].nunique() != 3 or charging["strategy"].nunique() != 2:
+        raise ArtifactValidationError("Preconditioning baseline table must contain three scenarios and two baselines")
+    if not (charging["charge_status"] == "charge_complete").all():
+        raise ArtifactValidationError("One or more baseline charge events did not complete")
+
+    candidates = pd.read_csv(root / "results" / "optimization" / "joint_optimization_candidates.csv")
+    pareto = pd.read_csv(root / "results" / "optimization" / "joint_optimization_pareto.csv")
+    recommended = pd.read_csv(root / "results" / "optimization" / "joint_optimization_recommended.csv")
+    robustness = pd.read_csv(root / "results" / "optimization" / "optimization_robustness.csv")
+    if candidates.empty or pareto.empty or len(recommended) != 3:
+        raise ArtifactValidationError("Joint optimization candidate, Pareto, or recommendation table is incomplete")
+    _validate_pareto_by_scenario(candidates, pareto)
+    if not recommended["feasible"].all() or not robustness["feasible"].all():
+        raise ArtifactValidationError("Optimization recommendation or robustness constraints failed")
+    numeric_tables = (architecture, sizing, charging, candidates, pareto, recommended, robustness)
+    if any(not np.isfinite(table.select_dtypes(include=[np.number]).to_numpy()).all() for table in numeric_tables):
+        raise ArtifactValidationError("Upgrade result tables contain non-finite values")
+    return {
+        "formal_run_id": formal_manifest["run_id"],
+        "upgrade_artifact_count": len(hashes),
+        "architecture_rows": len(architecture),
+        "charging_rows": len(charging),
+        "optimization_candidates": len(candidates),
+        "pareto_rows": len(pareto),
+    }

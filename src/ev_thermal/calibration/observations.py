@@ -67,6 +67,10 @@ class ObservationDataset:
             raise ObservationValidationError("Measurement standard deviations must be positive")
         if (checked["coolant_ua_w_k"] < 0).any():
             raise ObservationValidationError("coolant_ua_w_k must be non-negative")
+        episode_values = checked["episode_id"].to_numpy(dtype=float)
+        if not np.array_equal(episode_values, np.round(episode_values)):
+            raise ObservationValidationError("episode_id values must be integers")
+        checked["episode_id"] = np.round(episode_values).astype(int)
         if checked.duplicated(["episode_id", "time_s"]).any():
             raise ObservationValidationError("Duplicate episode_id/time_s observations")
         for _, episode in checked.groupby("episode_id", sort=False):
@@ -77,7 +81,6 @@ class ObservationDataset:
             checked["external_heat_w"] = 0.0
         elif not np.isfinite(pd.to_numeric(checked["external_heat_w"]).to_numpy(dtype=float)).all():
             raise ObservationValidationError("external_heat_w must be finite")
-        checked["episode_id"] = checked["episode_id"].astype(int)
         return cls(checked.reset_index(drop=True), dataset_ids[0], maturities[0])
 
     @property

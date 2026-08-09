@@ -1,0 +1,34 @@
+{
+  "objective_columns": [
+    "charge_time_s",
+    "preconditioning_energy_kwh",
+    "relative_aging_damage"
+  ],
+  "candidate_count": 186,
+  "feasible_candidate_count": 186,
+  "pareto_count": 33,
+  "recommended_candidates": [
+    {
+      "scenario": "cold_arrival",
+      "candidate_id": "optimized-017",
+      "strategy": "optimized",
+      "recommendation_basis": "normalized Pareto objectives with 0.45/0.20/0.35 weights"
+    },
+    {
+      "scenario": "mild_arrival",
+      "candidate_id": "optimized-006",
+      "strategy": "optimized",
+      "recommendation_basis": "normalized Pareto objectives with 0.45/0.20/0.35 weights"
+    },
+    {
+      "scenario": "hot_arrival",
+      "candidate_id": "optimized-032",
+      "strategy": "optimized",
+      "recommendation_basis": "normalized Pareto objectives with 0.45/0.20/0.35 weights"
+    }
+  ],
+  "all_recommendations_feasible": true,
+  "robustness_cases": 6,
+  "all_robustness_cases_feasible": true,
+  "aging_claim_scope": "relative strategy comparison only"
+}

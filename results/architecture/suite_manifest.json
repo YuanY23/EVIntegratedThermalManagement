@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "suite": "architecture",
+  "status": "verified",
+  "plant_sha256": "d3c0ea7429cd7292d88f2a46f2d4b42a63108c5de92c9bd1e7527affce68525f",
+  "created_at_utc": "2026-08-09T04:39:51.122017+00:00",
+  "artifact_sha256": {
+    "architecture_comparison.csv": "69fa7cb9d16faa4735496a9f7c760dc280fef95fb22113097f5eb2120b471a46",
+    "component_sizing_feasibility.csv": "61ee177ed4a8507f4eee36a8608fe5f062625d89bee8bb55984258be50e69ed1",
+    "architecture_ranking.csv": "d8cddbe208abf09c6e02a2baca21f084bdf634d054e1f0ddaba1857d553f4bc9",
+    "architecture_summary.json": "0a450f799060596e1d3c083d10710a417b89b38075aa4f344d7b3902de7647dc",
+    "architecture_comparison.png": "3814f52bce6725d46b13d7e7c3c7a117aa9978326c7c71ce65227d2d145eae4b",
+    "component_sizing_feasibility.png": "2c54a9708dede60b77fdb9e462bb96a951869a014faed0e7ab2ce913c0634e58"
+  }
+}

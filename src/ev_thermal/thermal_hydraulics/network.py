@@ -128,16 +128,20 @@ class SeriesHydraulicNetwork:
                 raise ValueError("Component returned an invalid pressure loss")
             return pump.pressure_rise(speed, mass_flow) - system_pressure
 
-        upper = pump.max_mass_flow_kg_s * speed * (1.0 - 1e-9)
+        upper = pump.max_mass_flow_kg_s * speed
         try:
             lower_residual = residual(0.0)
             upper_residual = residual(upper)
-            if lower_residual < 0 or upper_residual > 0:
+            if lower_residual < 0 or upper_residual > 1e-12:
                 return HydraulicSolveResult(
                     "no_intersection", False, self._zero_point(), {}, float("nan"), evaluations,
                     message="Pump and system curves do not bracket a working point",
                 )
-            mass_flow = float(brentq(residual, 0.0, upper, xtol=1e-12, rtol=1e-12))
+            mass_flow = (
+                upper
+                if abs(upper_residual) <= 1e-12
+                else float(brentq(residual, 0.0, upper, xtol=1e-12, rtol=1e-12))
+            )
             drops, system_pressure = pressure_budget(mass_flow)
         except (ValueError, RuntimeError, OverflowError) as exc:
             return HydraulicSolveResult(

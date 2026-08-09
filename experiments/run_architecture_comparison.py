@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from _bootstrap import ROOT
+from ev_thermal.artifacts import write_upgrade_suite_manifest
 from ev_thermal.config import load_config
 from ev_thermal.pipeline import run_architecture_comparison, run_architecture_sizing
 from ev_thermal.visualization import plot_architecture_comparison, plot_sizing_feasibility
@@ -25,7 +26,11 @@ def main() -> None:
     comparison.to_csv(output / "architecture_comparison.csv", index=False)
     sizing.to_csv(output / "component_sizing_feasibility.csv", index=False)
 
-    ranked = comparison.copy()
+    eligible = comparison.groupby("architecture")["feasible"].all()
+    eligible_architectures = eligible[eligible].index.tolist()
+    if not eligible_architectures:
+        raise RuntimeError("No architecture is feasible across every required scenario")
+    ranked = comparison[comparison["architecture"].isin(eligible_architectures)].copy()
     for metric in ("max_battery_temp_c", "max_motor_temp_c", "pump_energy_kwh", "auxiliary_energy_kwh"):
         ranked[f"rank_{metric}"] = ranked.groupby("scenario")[metric].rank(method="average")
     rank_columns = [column for column in ranked if column.startswith("rank_")]
@@ -42,12 +47,14 @@ def main() -> None:
         "comparison_rows": int(len(comparison)),
         "sizing_rows": int(len(sizing)),
         "feasible_sizing_points": int(sizing["feasible"].sum()),
+        "eligible_architectures": eligible_architectures,
         "recommended_by_equal_rank": ranking.iloc[0]["architecture"],
         "ranking_method": "equal sum of within-scenario ranks; lower is better",
     }
     (output / "architecture_summary.json").write_text(
         json.dumps(summary, indent=2), encoding="utf-8"
     )
+    write_upgrade_suite_manifest(ROOT, "architecture", output)
     print(json.dumps(summary, indent=2))
 
 

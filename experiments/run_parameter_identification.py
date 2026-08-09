@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 
 from _bootstrap import ROOT
+from ev_thermal.artifacts import write_upgrade_suite_manifest
 from ev_thermal.calibration.identification import (
     BATTERY_THERMAL_PARAMETERS,
     generate_synthetic_battery_observations,
@@ -94,6 +95,7 @@ def main() -> None:
     (output / "maturity_statement.json").write_text(
         json.dumps(statement, indent=2), encoding="utf-8"
     )
+    write_upgrade_suite_manifest(ROOT, "calibration", output)
     print(json.dumps(statement, indent=2))
 
 

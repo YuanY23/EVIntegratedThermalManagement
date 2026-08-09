@@ -58,6 +58,11 @@ class Pump:
             system_head = max(system_resistance_pa_per_kg2_s2, 0.0) * mdot**2
             return pump_head - system_head
 
-        mass_flow = brentq(residual, 0.0, zero_head_flow * (1.0 - 1e-9))
+        upper_residual = residual(zero_head_flow)
+        mass_flow = (
+            zero_head_flow
+            if abs(upper_residual) <= 1e-12
+            else brentq(residual, 0.0, zero_head_flow)
+        )
         pressure = max(system_resistance_pa_per_kg2_s2, 0.0) * mass_flow**2
         return self.point_at(speed, mass_flow, pressure)

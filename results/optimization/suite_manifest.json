@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "suite": "optimization",
+  "status": "verified",
+  "plant_sha256": "d3c0ea7429cd7292d88f2a46f2d4b42a63108c5de92c9bd1e7527affce68525f",
+  "created_at_utc": "2026-08-09T04:39:48.366060+00:00",
+  "artifact_sha256": {
+    "joint_optimization_candidates.csv": "d79f8698f28fb549676594137b8fd1d5989bb161b59e14b28320e9ca84819e29",
+    "joint_optimization_pareto.csv": "d9604afc402ba1f002505289e04bf3dccfe847a8bed2f040da929c816828eec5",
+    "joint_optimization_recommended.csv": "8ddcb7ebb34151a58bc0507808ff3ef32ee95eda2559469300a5dcd6f1f63d5f",
+    "constraint_audit.csv": "b70fefb8b9438f90ef99167c1789893a699dcd1c0ae7d5f8b401dea0e81d83ff",
+    "optimization_robustness.csv": "a9964dd19f6d47468585c80814419c61618c76c9c95f5d61780fbc993d91a286",
+    "joint_optimization_summary.json": "f6187e9c234e934ffe25d94c04c048da031fcdf05eee23dc61a43db63e570b60",
+    "joint_optimization_pareto.png": "9a70cb10f271bbc19905c82357314478bb8e837870b8182f2f82e78eb8db2ed2"
+  }
+}

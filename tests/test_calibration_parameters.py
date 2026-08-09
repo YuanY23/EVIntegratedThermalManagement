@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pandas as pd
 import pytest
 
@@ -101,3 +99,12 @@ def test_observation_contract_rejects_missing_columns_and_mixed_maturity():
     mixed.loc[2, "maturity"] = "measured"
     with pytest.raises(ObservationValidationError, match="one maturity"):
         ObservationDataset.from_frame(mixed)
+
+
+def test_observation_contract_rejects_fractional_episode_ids_before_casting():
+    frame = _valid_observation_frame().iloc[:2].copy()
+    frame["episode_id"] = [1.2, 1.8]
+    frame["time_s"] = [0.0, 0.0]
+
+    with pytest.raises(ObservationValidationError, match="must be integers"):
+        ObservationDataset.from_frame(frame)

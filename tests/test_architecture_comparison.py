@@ -8,7 +8,9 @@ from ev_thermal.thermal_hydraulics.topologies import (
     HydraulicDesign,
     architecture_names,
     cross_loop_exchange,
+    shared_heat_sink_rejection,
 )
+from ev_thermal.thermal_hydraulics.heat_exchanger import Radiator
 
 
 def test_integrated_simulator_uses_network_and_resistance_changes_physics():
@@ -55,6 +57,26 @@ def test_liquid_hx_heat_is_equal_opposite_and_limited_by_temperature_direction()
     assert coupled.battery_out_temp_c > 25.0
     assert 0 < coupled.effectiveness <= 1
     assert reversed_flow.drive_to_battery_heat_w < 0
+
+
+def test_shared_sink_preserves_signed_branch_enthalpy_when_temperatures_cross_ambient():
+    result = shared_heat_sink_rejection(
+        Radiator(),
+        battery_temp_c=10.0,
+        powertrain_temp_c=60.0,
+        ambient_temp_c=25.0,
+        battery_flow_kg_s=0.25,
+        powertrain_flow_kg_s=0.25,
+        vehicle_speed_mps=0.0,
+        fan_fraction=1.0,
+    )
+
+    assert result.battery_heat_rejected_w < 0.0
+    assert result.powertrain_heat_rejected_w > 0.0
+    assert np.isclose(
+        result.battery_heat_rejected_w + result.powertrain_heat_rejected_w,
+        result.total_heat_rejected_w,
+    )
 
 
 def test_three_architectures_produce_complete_reproducible_tables_and_infeasible_specs():

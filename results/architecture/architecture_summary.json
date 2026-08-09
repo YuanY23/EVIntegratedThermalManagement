@@ -8,6 +8,11 @@
   "comparison_rows": 18,
   "sizing_rows": 45,
   "feasible_sizing_points": 36,
+  "eligible_architectures": [
+    "coupled_dual_loop",
+    "independent_dual_loop",
+    "shared_heat_sink"
+  ],
   "recommended_by_equal_rank": "shared_heat_sink",
   "ranking_method": "equal sum of within-scenario ranks; lower is better"
 }

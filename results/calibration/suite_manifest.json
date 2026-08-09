@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "suite": "calibration",
+  "status": "verified",
+  "plant_sha256": "d3c0ea7429cd7292d88f2a46f2d4b42a63108c5de92c9bd1e7527affce68525f",
+  "created_at_utc": "2026-08-09T04:40:18.913687+00:00",
+  "artifact_sha256": {
+    "synthetic_training_observations.csv": "a5f4618a355dd1e1f6699428346c1d3d928afdec413693d1eed9e5321d83c472",
+    "synthetic_holdout_observations.csv": "8faac19378b98a312fb77a6cd6cfebaa28073c2ecffbee0ba0da656a436556b1",
+    "parameter_estimates.csv": "e5ef7cf26ab614616b78bb9625f3c053e2b50165ae4b3b83787b6941e26d1311",
+    "identified_parameters.json": "f400046391a9373781896be21366dff2184a6afa8fd26363d57377357d78df34",
+    "identification_residuals.csv": "895de58b4bd7d3386aa76c51d0f7ca366f81ba46e2024c53b8c093e07a76c1db",
+    "holdout_validation_metrics.csv": "b828f9c0012f7c73d46bd8c99be3381566154f33c57b3a3d90d7b715c2d5718d",
+    "local_sensitivity.csv": "6db444ddc9900bb2f275b6539fbfd2c6c499156dbb287ca77352752867088e60",
+    "global_sensitivity_rankings.csv": "e52258661bf39d7fff56d663cb44dc95ee090b3cc053adeb578686baf73fa09b",
+    "global_sensitivity_intervals.csv": "1fa658a67707eac0b935fb04a89af01595ff31c10bb5700f464b9f82519e4d17",
+    "maturity_statement.json": "5182815376c5b543a715598a7d0b14ada9009901c1ef0bd37bbd409a49acba8f",
+    "calibration_summary.png": "8b7b75684dd1ddac80bfaec322e2b68adfb5507f74c113f5ae996d74957a09ce"
+  }
+}

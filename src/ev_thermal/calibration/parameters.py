@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, replace
+from collections import Counter
 import json
 from pathlib import Path
 from typing import Any
@@ -43,7 +44,7 @@ class ParameterSpec:
 class ParameterRegistry:
     def __init__(self, specs: list[ParameterSpec]):
         names = [spec.name for spec in specs]
-        duplicates = sorted({name for name in names if names.count(name) > 1})
+        duplicates = sorted(name for name, count in Counter(names).items() if count > 1)
         if duplicates:
             raise ValueError(f"Duplicate parameter names: {duplicates}")
         self._specs = tuple(specs)

@@ -153,3 +153,34 @@ def plot_preconditioning_comparison(table: pd.DataFrame, path: str | Path) -> Pa
     fig.savefig(output, dpi=180)
     plt.close(fig)
     return output
+
+
+def plot_joint_optimization(pareto: pd.DataFrame, recommended: pd.DataFrame,
+                            path: str | Path) -> Path:
+    output = _prepare_path(path)
+    scenarios = list(pareto["scenario"].drop_duplicates())
+    fig, axes = plt.subplots(1, len(scenarios), figsize=(5 * len(scenarios), 4.5),
+                             constrained_layout=True)
+    axes = np.atleast_1d(axes)
+    for axis, scenario in zip(axes, scenarios):
+        subset = pareto[pareto["scenario"] == scenario]
+        scatter = axis.scatter(
+            subset["charge_time_min"],
+            subset["relative_aging_damage"],
+            c=subset["arrival_core_temp_c"],
+            s=40 + 35 * subset["preconditioning_energy_kwh"],
+            cmap="coolwarm",
+            alpha=0.8,
+        )
+        chosen = recommended[recommended["scenario"] == scenario]
+        axis.scatter(chosen["charge_time_min"], chosen["relative_aging_damage"],
+                     marker="*", s=220, c="#111827", label="Recommended")
+        axis.set_title(scenario.replace("_", " "))
+        axis.set_xlabel("Charge time (min)")
+        axis.grid(alpha=0.25)
+        axis.legend(fontsize=8)
+        fig.colorbar(scatter, ax=axis, label="Arrival core (degC)")
+    axes[0].set_ylabel("Relative aging damage (-)")
+    fig.savefig(output, dpi=180)
+    plt.close(fig)
+    return output

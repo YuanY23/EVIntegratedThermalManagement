@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .fluid import glycol_properties
 from .heat_exchanger import Radiator, liquid_liquid_exchange
 from .network import ColdPlateElement, PipeElement, QuadraticLoss, SeriesHydraulicNetwork
 from .pump import Pump
@@ -111,8 +112,12 @@ def shared_heat_sink_rejection(radiator: Radiator, battery_temp_c: float,
                                battery_flow_kg_s: float, powertrain_flow_kg_s: float,
                                vehicle_speed_mps: float, fan_fraction: float) -> SharedSinkResult:
     """Mix two branches through one radiator and split its heat by enthalpy potential."""
-    battery_capacity = max(battery_flow_kg_s, 0.0) * 3500.0
-    powertrain_capacity = max(powertrain_flow_kg_s, 0.0) * 3500.0
+    battery_capacity = (
+        max(battery_flow_kg_s, 0.0) * glycol_properties(battery_temp_c).cp_j_kgk
+    )
+    powertrain_capacity = (
+        max(powertrain_flow_kg_s, 0.0) * glycol_properties(powertrain_temp_c).cp_j_kgk
+    )
     total_capacity = battery_capacity + powertrain_capacity
     if total_capacity < 1e-9:
         result = radiator.exchange(
@@ -130,12 +135,9 @@ def shared_heat_sink_rejection(radiator: Radiator, battery_temp_c: float,
         vehicle_speed_mps,
         fan_fraction,
     )
-    battery_potential = battery_capacity * abs(battery_temp_c - ambient_temp_c)
-    powertrain_potential = powertrain_capacity * abs(powertrain_temp_c - ambient_temp_c)
-    total_potential = battery_potential + powertrain_potential
-    battery_share = battery_potential / total_potential if total_potential > 1e-9 else 0.5
-    battery_heat = result.heat_rejected_w * battery_share
-    powertrain_heat = result.heat_rejected_w - battery_heat
+    common_outlet = mixed - result.heat_rejected_w / total_capacity
+    battery_heat = battery_capacity * (battery_temp_c - common_outlet)
+    powertrain_heat = powertrain_capacity * (powertrain_temp_c - common_outlet)
     return SharedSinkResult(
         battery_heat,
         powertrain_heat,

@@ -37,10 +37,13 @@ class AgingStep:
     c_rate: float
 
 
+_DEFAULT_PARAMETERS = AgingParameters()
+
+
 def incremental_aging(current_a: float, temperature_c: float, soc: float, dt_s: float,
                       capacity_ah: float, parameters: AgingParameters | None = None) -> AgingStep:
     """Return a dimensionless relative damage increment for strategy comparison."""
-    parameters = parameters or AgingParameters()
+    parameters = parameters or _DEFAULT_PARAMETERS
     if dt_s < 0 or capacity_ah <= 0 or temperature_c <= -273.15 or not 0 <= soc <= 1:
         raise ValueError("Invalid aging state or duration")
     if dt_s == 0:

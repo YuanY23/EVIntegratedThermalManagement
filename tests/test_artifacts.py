@@ -6,10 +6,15 @@ import pytest
 
 from ev_thermal.artifacts import (
     ArtifactValidationError,
+    _validate_pareto_by_scenario,
+    _validate_upgrade_suite_manifests,
+    compute_plant_sha256,
     create_run_layout,
     hash_source_tree,
     promote_run,
     validate_run_artifacts,
+    validate_upgrade_artifacts,
+    write_upgrade_suite_manifest,
     write_run_manifest,
 )
 from ev_thermal.simulation.scenarios import scenario_names
@@ -40,6 +45,22 @@ def test_source_hash_is_independent_of_checkout_location(tmp_path):
     second_hash = hash_source_tree([second / "src" / "plant.py"], base_dir=second)
 
     assert first_hash == second_hash
+
+
+def test_plant_hash_includes_parameter_registry(tmp_path):
+    source = tmp_path / "src" / "ev_thermal" / "plant.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("VALUE = 1\n", encoding="utf-8")
+    configs = tmp_path / "configs"
+    configs.mkdir()
+    (configs / "default_config.yaml").write_text("seed: 42\n", encoding="utf-8")
+    registry = configs / "parameter_registry.yaml"
+    registry.write_text("parameters: []\n", encoding="utf-8")
+
+    before = compute_plant_sha256(tmp_path)
+    registry.write_text("parameters: [{name: changed}]\n", encoding="utf-8")
+
+    assert compute_plant_sha256(tmp_path) != before
 
 
 def _write_minimal_formal_run(root: Path):
@@ -128,3 +149,60 @@ def test_formal_validation_checks_semantics_and_hashes(tmp_path):
     comparison_path.write_text(comparison_path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
     with pytest.raises(ArtifactValidationError, match="hash"):
         validate_run_artifacts(layout.run_root, require_formal=True)
+
+
+def test_formal_validation_rejects_an_unhashed_required_artifact(tmp_path):
+    layout = _write_minimal_formal_run(tmp_path)
+    manifest = json.loads(layout.manifest_path.read_text(encoding="utf-8"))
+    manifest["artifact_sha256"].pop("models/thermal_load_lstm.pt")
+    layout.manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ArtifactValidationError, match="hash set mismatch"):
+        validate_run_artifacts(layout.run_root, require_formal=True)
+
+
+def test_upgrade_suite_manifest_binds_complete_evidence_to_plant(tmp_path, monkeypatch):
+    import ev_thermal.artifacts as artifacts
+
+    monkeypatch.setattr(artifacts, "UPGRADE_SUITE_ARTIFACTS", {"demo": ("evidence.csv",)})
+    monkeypatch.setattr(artifacts, "compute_plant_sha256", lambda root: "plant-hash")
+    suite_root = tmp_path / "results" / "demo"
+    suite_root.mkdir(parents=True)
+    evidence = suite_root / "evidence.csv"
+    evidence.write_text("value\n1\n", encoding="utf-8")
+
+    write_upgrade_suite_manifest(tmp_path, "demo")
+    _validate_upgrade_suite_manifests(tmp_path)
+    evidence.write_text("value\n2\n", encoding="utf-8")
+
+    with pytest.raises(ArtifactValidationError, match="artifact hash mismatch"):
+        _validate_upgrade_suite_manifests(tmp_path)
+
+
+def test_upgrade_validation_reports_missing_manifest(tmp_path):
+    with pytest.raises(ArtifactValidationError, match="upgrade manifest"):
+        validate_upgrade_artifacts(tmp_path)
+
+
+def test_pareto_validation_never_compares_candidates_across_scenarios():
+    candidates = pd.DataFrame(
+        [
+            {
+                "scenario": "cold",
+                "feasible": True,
+                "charge_time_s": 20.0,
+                "preconditioning_energy_kwh": 2.0,
+                "relative_aging_damage": 2.0,
+            },
+            {
+                "scenario": "hot",
+                "feasible": True,
+                "charge_time_s": 10.0,
+                "preconditioning_energy_kwh": 1.0,
+                "relative_aging_damage": 1.0,
+            },
+        ]
+    )
+    pareto = candidates.copy()
+
+    _validate_pareto_by_scenario(candidates, pareto)

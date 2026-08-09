@@ -78,3 +78,16 @@ def test_pipe_and_cold_plate_elements_have_positive_finite_losses():
     )
     losses = [element.pressure_drop_pa(0.12, fluid) for element in elements]
     assert all(np.isfinite(loss) and loss > 0 for loss in losses)
+
+
+def test_lossless_network_converges_at_the_zero_head_endpoint():
+    pump = Pump()
+    network = SeriesHydraulicNetwork((QuadraticLoss("lossless", 0.0),))
+
+    result = network.solve(pump, 1.0, 25.0)
+    legacy = pump.working_point(1.0, 0.0)
+
+    assert result.converged
+    assert result.point.mass_flow_kg_s == pump.max_mass_flow_kg_s
+    assert result.point.pressure_rise_pa == 0.0
+    assert legacy.mass_flow_kg_s == pump.max_mass_flow_kg_s

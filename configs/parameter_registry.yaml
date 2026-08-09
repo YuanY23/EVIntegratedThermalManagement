@@ -104,3 +104,53 @@ parameters:
     confidence: low
     model: heat_exchanger.liquid_liquid
     calibratable: true
+
+  - name: charging.charger_efficiency
+    unit: "-"
+    default: 0.95
+    lower: 0.88
+    upper: 0.99
+    source: engineering_assumption_pending_charger_map
+    confidence: low
+    model: charging.fast_charge
+    calibratable: true
+
+  - name: charging.max_current_a
+    unit: A
+    default: 550
+    lower: 200
+    upper: 800
+    source: engineering_assumption_pending_cell_limits
+    confidence: low
+    model: charging.acceptance
+    calibratable: true
+
+  - name: aging.activation_energy_j_mol
+    unit: J/mol
+    default: 24000
+    lower: 12000
+    upper: 50000
+    source: literature_shape_parameter_not_cell_calibrated
+    confidence: low
+    model: aging.relative_damage
+    calibratable: true
+
+  - name: aging.soc_stress_coefficient
+    unit: "-"
+    default: 1.8
+    lower: 0.2
+    upper: 5.0
+    source: literature_shape_parameter_not_cell_calibrated
+    confidence: low
+    model: aging.relative_damage
+    calibratable: true
+
+  - name: aging.c_rate_exponent
+    unit: "-"
+    default: 1.25
+    lower: 0.5
+    upper: 3.0
+    source: literature_shape_parameter_not_cell_calibrated
+    confidence: low
+    model: aging.relative_damage
+    calibratable: true

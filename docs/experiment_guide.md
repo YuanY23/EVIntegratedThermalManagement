@@ -27,6 +27,19 @@ D:\anaconda\python.exe experiments\verify_artifacts.py
 
 分步调试入口也不会直接写正式目录：`generate_dataset.py` 创建隔离 run，后续 `train_predictor.py` 和 `run_comparison.py` 必须显式传入该 `--run-root`。推荐使用 `run_all.py` 完成可发布实验。
 
+## 升级实验
+
+```powershell
+D:\anaconda\python.exe experiments\run_parameter_identification.py
+D:\anaconda\python.exe experiments\run_architecture_comparison.py
+D:\anaconda\python.exe experiments\run_preconditioning_comparison.py
+D:\anaconda\python.exe experiments\run_joint_optimization.py
+D:\anaconda\python.exe experiments\build_upgrade_manifest.py
+D:\anaconda\python.exe experiments\verify_artifacts.py
+```
+
+四个入口依次生成参数/V&V、三架构与规格、快充预热基准、联合优化结果。每个入口先生成独立suite manifest，完整绑定输入审计表、轨迹、摘要与图；`build_upgrade_manifest.py` 再将44个升级产物哈希绑定到最新正式 run 与 plant。最后一个验证命令同时检查正式模型链和升级证据链。源码、参数注册表或实验生成器改变后，旧 formal、suite manifest 与 upgrade manifest 都会被拒绝，必须重新生成。
+
 ## 结果解释
 
 比较策略时应同时观察热安全、舒适性和能耗，不能只看峰值温度。预测提前冷却可能增加泵耗，却降低后续强化冷却或压缩机峰值；余热回收可能改善低温能耗，但受可用余热和温差限制。所有结论应以多个工况均值和逐工况结果共同支持。

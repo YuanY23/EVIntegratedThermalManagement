@@ -1,13 +1,14 @@
 """Compare no-preconditioning and rule-based arrival conditioning before fast charge."""
 
 import argparse
-from dataclasses import asdict, replace
+from dataclasses import fields, replace
 import json
 from pathlib import Path
 
 import pandas as pd
 
 from _bootstrap import ROOT
+from ev_thermal.artifacts import write_upgrade_suite_manifest
 from ev_thermal.simulation.charging_scenarios import (
     charging_scenario_names,
     make_charging_scenario,
@@ -17,9 +18,11 @@ from ev_thermal.visualization import plot_preconditioning_comparison
 
 
 def _row(result) -> dict:
-    payload = asdict(result)
-    payload.pop("route_timeseries")
-    payload.pop("charge_timeseries")
+    payload = {
+        field.name: getattr(result, field.name)
+        for field in fields(result)
+        if field.name not in {"route_timeseries", "charge_timeseries"}
+    }
     payload["charge_time_min"] = payload["charge_time_s"] / 60.0
     return payload
 
@@ -32,11 +35,16 @@ def main() -> None:
     output.mkdir(parents=True, exist_ok=True)
 
     rows = []
+    maximum_power_ledger_residual_w = 0.0
     for name in charging_scenario_names():
         scenario = make_charging_scenario(name)
         for strategy in ("none", "rule"):
             result = simulate_trip_charge(scenario, strategy)
             rows.append(_row(result))
+            maximum_power_ledger_residual_w = max(
+                maximum_power_ledger_residual_w,
+                float(result.charge_timeseries["power_ledger_residual_w"].abs().max()),
+            )
             result.route_timeseries.to_csv(
                 output / f"route_{name}_{strategy}.csv", index=False
             )
@@ -66,16 +74,13 @@ def main() -> None:
         "baseline_strategies": ["none", "rule"],
         "comparison_rows": len(comparison),
         "all_charge_events_completed": bool((comparison["charge_status"] == "charge_complete").all()),
-        "maximum_power_ledger_residual_w": max(
-            abs(pd.read_csv(output / f"charge_{name}_{strategy}.csv")["power_ledger_residual_w"]).max()
-            for name in charging_scenario_names()
-            for strategy in ("none", "rule")
-        ),
+        "maximum_power_ledger_residual_w": maximum_power_ledger_residual_w,
         "aging_claim_scope": "relative strategy comparison only",
     }
     (output / "preconditioning_summary.json").write_text(
         json.dumps(summary, indent=2), encoding="utf-8"
     )
+    write_upgrade_suite_manifest(ROOT, "charging", output)
     print(json.dumps(summary, indent=2))
 
 

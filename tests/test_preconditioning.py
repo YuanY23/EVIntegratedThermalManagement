@@ -67,3 +67,21 @@ def test_route_cancellation_disables_preconditioning_deterministically():
     command = rule_preconditioning_command(-10.0, preview)
     assert not command.active
     assert command.reason == "route_inactive"
+
+
+def test_route_preview_reserves_future_traction_and_preconditioning_energy():
+    scenario = ChargingScenario(
+        name="low_soc_cold_arrival",
+        ambient_temp_c=-15.0,
+        initial_battery_temp_c=-15.0,
+        initial_soc=0.27,
+        route_time_s=2400,
+        target_soc=0.80,
+        station_power_w=220_000.0,
+    )
+
+    result = simulate_trip_charge(scenario, "rule")
+
+    assert result.arrival_soc >= 0.10
+    assert result.route_timeseries["preconditioning_reason"].iloc[0] == "soc_reserve"
+    assert result.route_timeseries["preconditioning_thermal_power_w"].iloc[0] == 0.0
