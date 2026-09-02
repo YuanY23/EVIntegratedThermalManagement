@@ -1,8 +1,13 @@
-# 纯电动汽车整车集成能量与热管理仿真
+# 纯电动汽车整车集成热管理、快充预热与多目标优化
 
-项目题目：**融合数据驱动热负荷预测的纯电动汽车整车集成热管理系统建模与能量优化**。
+> **人工阅读入口：[`project_delivery/README.md`](project_delivery/README.md)；AI事实入口：[`AGENTS.md`](AGENTS.md)**
+>
+> 后续AI应先阅读[`AGENTS.md`](AGENTS.md)和[`project_delivery/current/AI学习指南.md`](project_delivery/current/AI学习指南.md)。
+> 旧报告与历史运行已归档，不再用于当前研究结论。
 
-本项目面向能源与动力工程、清洁能源技术方向的硕士研究与热管理岗位求职。主体是整车系统级物理建模：由驾驶循环计算轮端需求、电驱功率与损耗，建立电池、电机、逆变器、乘员舱、冷却液回路、冷板、散热器、液液换热器、热泵、PTC和余热回收模型。LSTM仅预测未来300秒三类热负荷，并调整规则控制的启用时机和阈值，不直接输出执行器占空比。
+项目题目：**融合物理模型与数据驱动预测的纯电动汽车整车集成热管理——参数辨识、液路架构、快充到站预热与多目标优化**。
+
+本项目面向能源与动力工程、清洁能源技术方向的硕士研究与整车热管理岗位求职。主体是整车系统级物理建模，并在同一平台上完成参数辨识与V&V、一维液路和三架构选型、LSTM热负荷预测、快充到站预热，以及温度与SOC硬约束下的充电时间—预热能耗—相对老化三目标优化。LSTM仅预测未来300秒三类热负荷并调整规则控制时机，不直接输出执行器占空比。
 
 ## 项目特点
 
@@ -24,7 +29,7 @@
 ## 环境与运行
 
 ```powershell
-cd E:\EVIntegratedThermalManagement
+cd E:\graduate_project\EVIntegratedThermalManagement
 D:\anaconda\python.exe -m pip install -e .
 D:\anaconda\python.exe -m pytest -q
 D:\anaconda\python.exe experiments\run_all.py --quick
@@ -56,6 +61,8 @@ results/charging/        到站预热和快充时序/策略结果
 results/optimization/    候选、约束审计、Pareto与推荐点
 results/logs/            formal与upgrade运行清单
 docs/                    方程、控制、预测和实验说明
+project_delivery/current 最新项目介绍、研究报告、数据索引和AI指南
+project_delivery/archive 已弃用文档总结与历史版本
 ```
 
 ## 建模边界
